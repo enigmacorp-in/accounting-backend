@@ -232,27 +232,65 @@ router.get('/:id/pdf', async (req, res) => {
         // Vertical line to divide billing and shipping
         doc.moveTo(297.5, 180).lineTo(297.5, 275).stroke();
 
-        // Format address with proper line breaks
-        function formatAddress(client) {
-            return [
-                client.name,
-                client.address?.street,
-                client.address?.city,
-                `${client.address?.state}${client.address?.pincode ? ' - ' + client.address.pincode : ''}`
-            ].filter(Boolean).join('\n');
+        // Helper function to wrap text and return the next Y position
+        function wrapAddressLine(doc, text, x, y, maxWidth) {
+            const words = text.toString().split(' ');
+            let line = '';
+            let currentY = y;
+            const lineHeight = 15;
+
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + (line ? ' ' : '') + words[i];
+                const testWidth = doc.widthOfString(testLine);
+                
+                if (testWidth > maxWidth && i > 0) {
+                    doc.text(line, x, currentY);
+                    line = words[i];
+                    currentY += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            doc.text(line, x, currentY);
+            return currentY + lineHeight; // Return the Y position for the next line
+        }
+
+        // Format and render address
+        function renderAddress(doc, client, startX, startY) {
+            const maxWidth = 250; // Maximum width for address line
+            let currentY = startY;
+
+            // Company name
+            doc.text(client.name, startX, currentY);
+            currentY += 15;
+
+            // Combine street and city into one line for wrapping
+            const fullAddress = `${client.address?.street || ''}, ${client.address?.city || ''}`;
+            currentY = wrapAddressLine(doc, fullAddress, startX, currentY, maxWidth);
+
+            // State and pincode on a new line
+            if (client.address?.state && client.address?.pincode) {
+                doc.text(`${client.address.state} - ${client.address.pincode}`, startX, currentY);
+                currentY += 15;
+            }
+
+            // Return the final Y position for GSTIN
+            return currentY;
         }
 
         // Billing details
         doc.font('Helvetica-Bold').text('Billed to:', 30, 185);
-        doc.font('Helvetica').text(formatAddress(invoice.client), 30, 200);
-        // Add GSTIN at bottom of billed to box
-        doc.font('Helvetica').text(`GSTIN/UIN : ${invoice.client.gstin.toUpperCase()}`, 30, 255);
+        doc.font('Helvetica');
+        const billingGstinY = renderAddress(doc, invoice.client, 30, 200);
+        // Add GSTIN below the address
+        doc.text(`GSTIN/UIN : ${invoice.client.gstin.toUpperCase()}`, 30, billingGstinY);
 
         // Shipping details
         doc.font('Helvetica-Bold').text('Shipped to:', 307, 185);
-        doc.font('Helvetica').text(formatAddress(invoice.client), 307, 200);
-        // Add GSTIN at bottom of shipped to box
-        doc.font('Helvetica').text(`GSTIN/UIN : ${invoice.client.gstin.toUpperCase()}`, 307, 255);
+        doc.font('Helvetica');
+        const shippingGstinY = renderAddress(doc, invoice.client, 307, 200);
+        // Add GSTIN below the address
+        doc.text(`GSTIN/UIN : ${invoice.client.gstin.toUpperCase()}`, 307, shippingGstinY);
 
         // Items table
         const tableTop = 275;
