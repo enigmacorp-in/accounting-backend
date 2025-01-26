@@ -92,17 +92,17 @@ router.patch('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Invoice not found' });
         }
 
+        // Update invoice fields
         const updates = req.body;
         Object.keys(updates).forEach(key => {
-            if (updates[key] !== undefined) {
-                invoice[key] = updates[key];
-            }
+            invoice[key] = updates[key];
         });
 
         const updatedInvoice = await invoice.save();
         const populatedInvoice = await Invoice.findById(updatedInvoice._id)
             .populate('client')
             .populate('items.product');
+
         res.json(populatedInvoice);
     } catch (error) {
         res.status(400).json({ message: error.message });
