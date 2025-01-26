@@ -16,30 +16,6 @@ const invoiceItemSchema = new mongoose.Schema({
         required: true,
         min: 0
     },
-    saleType: {
-        type: String,
-        enum: ['Central - 5%', 'Central - 18%', 'Central - 28%'],
-        required: true
-    },
-    taxRate: {
-        type: Number,
-        required: true,
-        min: 0,
-        max: 100,
-        set: function(saleType) {
-            const rates = {
-                'Central - 5%': 5,
-                'Central - 18%': 18,
-                'Central - 28%': 28
-            };
-            return rates[this.saleType] || 18;
-        }
-    },
-    taxAmount: {
-        type: Number,
-        required: true,
-        min: 0
-    },
     total: {
         type: Number,
         required: true,
@@ -65,6 +41,25 @@ const invoiceSchema = new mongoose.Schema({
     dueDate: {
         type: Date,
         required: true
+    },
+    saleType: {
+        type: String,
+        enum: ['Central - 5%', 'Central - 18%', 'Central - 28%'],
+        required: true
+    },
+    taxRate: {
+        type: Number,
+        required: true,
+        min: 0,
+        max: 100,
+        set: function(saleType) {
+            const rates = {
+                'Central - 5%': 5,
+                'Central - 18%': 18,
+                'Central - 28%': 28
+            };
+            return rates[this.saleType] || 18;
+        }
     },
     items: [invoiceItemSchema],
     subtotal: {
@@ -123,8 +118,9 @@ invoiceSchema.pre('save', function(next) {
         // Calculate expected totals
         const calculatedSubtotal = this.items.reduce((sum, item) => 
             sum + (item.price * item.quantity), 0);
-        const calculatedTotalTax = this.items.reduce((sum, item) => 
-            sum + item.taxAmount, 0);
+            
+        // Calculate tax based on invoice-level tax rate
+        const calculatedTotalTax = (calculatedSubtotal * this.taxRate) / 100;
         const calculatedTotal = calculatedSubtotal + calculatedTotalTax;
 
         // Round to 2 decimal places for comparison
